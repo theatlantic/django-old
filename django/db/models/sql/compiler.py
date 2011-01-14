@@ -441,12 +441,16 @@ class SQLCompiler(object):
                 continue
             alias_str = (alias != name and ' %s' % alias or '')
             if join_type and not first:
-                result.append('%s %s%s ON (%s.%s = %s.%s)'
+                part ='%s %s%s ON (%s.%s = %s.%s)' \
                         % (join_type, qn(name), alias_str, qn(lhs),
-                           qn2(lhs_col), qn(alias), qn2(col)))
+                           qn2(lhs_col), qn(alias), qn2(col))
             else:
                 connector = not first and ', ' or ''
-                result.append('%s%s%s' % (connector, qn(name), alias_str))
+                part = '%s%s%s' % (connector, qn(name), alias_str)
+            for model, hint in self.query.hints.items():
+                if model._meta.db_table == name:
+                    part += ' USE INDEX (%s)' % ', '.join(hint)
+            result.append(part)
             first = False
         for t in self.query.extra_tables:
             alias, unused = self.query.table_alias(t)
