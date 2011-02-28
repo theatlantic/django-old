@@ -68,25 +68,19 @@ class BaseHandler(object):
         from django.core import exceptions, urlresolvers
         from django.conf import settings
 
+        # Apply request middleware
+        for middleware_method in self._request_middleware:
+            response = middleware_method(request)
+            if response:
+                return response
+
+        # Get urlconf from request object, if available.  Otherwise use default.
+        urlconf = getattr(request, "urlconf", settings.ROOT_URLCONF)
+
+        resolver = urlresolvers.RegexURLResolver(r'^/', urlconf)
+        urlresolvers.set_urlconf(urlconf)
         try:
             try:
-                # Setup default url resolver for this thread.
-                urlconf = settings.ROOT_URLCONF
-                urlresolvers.set_urlconf(urlconf)
-                resolver = urlresolvers.RegexURLResolver(r'^/', urlconf)
-
-                # Apply request middleware
-                for middleware_method in self._request_middleware:
-                    response = middleware_method(request)
-                    if response:
-                        return response
-
-                if hasattr(request, "urlconf"):
-                    # Reset url resolver with a custom urlconf.
-                    urlconf = request.urlconf
-                    urlresolvers.set_urlconf(urlconf)
-                    resolver = urlresolvers.RegexURLResolver(r'^/', urlconf)
-
                 callback, callback_args, callback_kwargs = resolver.resolve(
                         request.path_info)
 
