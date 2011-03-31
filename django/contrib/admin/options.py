@@ -26,6 +26,14 @@ from django.utils.translation import ugettext as _
 from django.utils.translation import ungettext, ugettext_lazy
 from django.utils.encoding import force_unicode
 
+import sys
+import logging
+from sentry.client.handlers import SentryHandler
+import re
+
+logger = logging.getLogger('task')
+logger.addHandler(SentryHandler())
+
 HORIZONTAL, VERTICAL = 1, 2
 # returns the <ul> class for a given radio_admin field
 get_ul_class = lambda x: 'radiolist%s' % ((x == HORIZONTAL) and ' inline' or '')
@@ -799,11 +807,46 @@ class ModelAdmin(BaseModelAdmin):
         ModelForm = self.get_form(request)
         formsets = []
         if request.method == 'POST':
+            exc_info = sys.exc_info()
+            try:
+                match = re.search(r"^<class '([^']+)'>", str(model))
+                if match is not None:
+                    model_name = match.group(1)
+                else:
+                    model_name = 'Item'
+            except:
+                model_name = 'Item'
             form = ModelForm(request.POST, request.FILES)
             if form.is_valid():
+                logger.info(
+                    '%s added' % (model_name),
+                    exc_info=exc_info,
+                    extra={
+                        'request': request,
+                        'view': 'ModelAdmin.add_view',
+                        'url': request.path_info,
+                        'data': {
+                            'url': request.path_info,
+                            'username': request.user.username
+                        }
+                    }
+                )
                 new_object = self.save_form(request, form, change=False)
                 form_validated = True
             else:
+                logger.info(
+                    '%s added, INVALID' % (model_name),
+                    exc_info=exc_info,
+                    extra={
+                        'request': request,
+                        'view': 'ModelAdmin.add_view',
+                        'url': request.path_info,
+                        'data': {
+                            'url': request.path_info,
+                            'username': request.user.username
+                        }
+                    }
+                )
                 form_validated = False
                 new_object = self.model()
             prefixes = {}
@@ -897,11 +940,46 @@ class ModelAdmin(BaseModelAdmin):
         ModelForm = self.get_form(request, obj)
         formsets = []
         if request.method == 'POST':
+            exc_info = sys.exc_info()
+            try:
+                match = re.search(r"^<class '([^']+)'>", str(model))
+                if match is not None:
+                    model_name = match.group(1)
+                else:
+                    model_name = 'Item'
+            except:
+                model_name = 'Item'
             form = ModelForm(request.POST, request.FILES, instance=obj)
             if form.is_valid():
+                logger.info(
+                    '%s changed' % (model_name),
+                    exc_info=exc_info,
+                    extra={
+                        'request': request,
+                        'view': 'ModelAdmin.change_view',
+                        'url': request.path_info,
+                        'data': {
+                            'url': request.path_info,
+                            'username': request.user.username
+                        }
+                    }
+                )
                 form_validated = True
                 new_object = self.save_form(request, form, change=True)
             else:
+                logger.info(
+                    '%s changed, INVALID' % (model_name),
+                    exc_info=exc_info,
+                    extra={
+                        'request': request,
+                        'view': 'ModelAdmin.change_view',
+                        'url': request.path_info,
+                        'data': {
+                            'url': request.path_info,
+                            'username': request.user.username
+                        }
+                    }
+                )
                 form_validated = False
                 new_object = obj
             prefixes = {}
