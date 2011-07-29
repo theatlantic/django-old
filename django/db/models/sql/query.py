@@ -133,6 +133,7 @@ class Query(object):
         self.distinct = False
         self.select_related = False
         self.related_select_cols = []
+        self.hints = {}
 
         # SQL aggregate-related attributes
         self.aggregates = SortedDict() # Maps alias -> SQL aggregate function
@@ -285,6 +286,7 @@ class Query(object):
             obj._extra_select_cache = self._extra_select_cache.copy()
         obj.extra_tables = self.extra_tables
         obj.extra_order_by = self.extra_order_by
+        obj.hints = self.hints
         obj.deferred_loading = deepcopy(self.deferred_loading, memo=memo)
         if self.filter_is_sticky and self.used_aliases:
             obj.used_aliases = self.used_aliases.copy()
@@ -1684,6 +1686,9 @@ class Query(object):
         if order_by:
             self.extra_order_by = order_by
 
+    def add_hint(self, model, hint):
+        add_to_dict(self.hints, model, hint)
+            
     def clear_deferred_loading(self):
         """
         Remove any fields from the deferred loading set.
