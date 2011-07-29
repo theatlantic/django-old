@@ -338,6 +338,10 @@ class AdminSite(object):
         else:
             if user.is_active and user.is_staff:
                 login(request, user)
+                # adding redirect_to for video login redirect
+                redirect_to = request.REQUEST.get("next",'')
+                if redirect_to:
+                    return http.HttpResponseRedirect(redirect_to)                    
                 return http.HttpResponseRedirect(request.get_full_path())
             else:
                 return self.display_login_form(request, ERROR_MESSAGE)
