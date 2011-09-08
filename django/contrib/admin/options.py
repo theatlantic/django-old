@@ -933,6 +933,7 @@ class ModelAdmin(BaseModelAdmin):
             'errors': helpers.AdminErrorList(form, formsets),
             'root_path': self.admin_site.root_path,
             'app_label': opts.app_label,
+            'app_name': getattr(opts, 'app_verbose_name', capfirst(opts.app_label)),
         }
         context.update(extra_context or {})
         return self.render_change_form(request, context, form_url=form_url, add=True)
@@ -1025,6 +1026,7 @@ class ModelAdmin(BaseModelAdmin):
             'errors': helpers.AdminErrorList(form, formsets),
             'root_path': self.admin_site.root_path,
             'app_label': opts.app_label,
+            'app_name': getattr(opts, 'app_verbose_name', capfirst(opts.app_label)),
         }
         context.update(extra_context or {})
         return self.render_change_form(request, context, change=True, obj=obj)
@@ -1165,6 +1167,7 @@ class ModelAdmin(BaseModelAdmin):
             'has_add_permission': self.has_add_permission(request),
             'root_path': self.admin_site.root_path,
             'app_label': app_label,
+            'app_name': getattr(opts, 'app_verbose_name', capfirst(opts.app_label)),
             'action_form': action_form,
             'actions_on_top': self.actions_on_top,
             'actions_on_bottom': self.actions_on_bottom,
@@ -1230,6 +1233,7 @@ class ModelAdmin(BaseModelAdmin):
             "opts": opts,
             "root_path": self.admin_site.root_path,
             "app_label": app_label,
+            'app_name': getattr(opts, 'app_verbose_name', capfirst(opts.app_label)),
         }
         context.update(extra_context or {})
         context_instance = template.RequestContext(request, current_app=self.admin_site.name)
@@ -1258,6 +1262,7 @@ class ModelAdmin(BaseModelAdmin):
             'object': obj,
             'root_path': self.admin_site.root_path,
             'app_label': app_label,
+            'app_name': getattr(opts, 'app_verbose_name', capfirst(opts.app_label)),
         }
         context.update(extra_context or {})
         context_instance = template.RequestContext(request, current_app=self.admin_site.name)
