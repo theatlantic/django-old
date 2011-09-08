@@ -340,6 +340,7 @@ class AdminSite(object):
         user = request.user
         for model, model_admin in self._registry.items():
             app_label = model._meta.app_label
+            app_name = getattr(model._meta, 'app_verbose_name', app_label.title())
             has_module_perms = user.has_module_perms(app_label)
 
             if has_module_perms:
@@ -357,7 +358,7 @@ class AdminSite(object):
                         app_dict[app_label]['models'].append(model_dict)
                     else:
                         app_dict[app_label] = {
-                            'name': app_label.title(),
+                            'name': app_name,
                             'app_url': app_label + '/',
                             'has_module_perms': has_module_perms,
                             'models': [model_dict],
@@ -386,8 +387,10 @@ class AdminSite(object):
         user = request.user
         has_module_perms = user.has_module_perms(app_label)
         app_dict = {}
+        app_name = capfirst(app_label)
         for model, model_admin in self._registry.items():
             if app_label == model._meta.app_label:
+                app_name = getattr(model._meta, 'app_verbose_name', app_label.title())
                 if has_module_perms:
                     perms = model_admin.get_model_perms(request)
 
@@ -406,7 +409,7 @@ class AdminSite(object):
                             # something to display, add in the necessary meta
                             # information.
                             app_dict = {
-                                'name': app_label.title(),
+                                'name': app_name,
                                 'app_url': '',
                                 'has_module_perms': has_module_perms,
                                 'models': [model_dict],
@@ -416,7 +419,7 @@ class AdminSite(object):
         # Sort the models alphabetically within each app.
         app_dict['models'].sort(key=lambda x: x['name'])
         context = {
-            'title': _('%s administration') % capfirst(app_label),
+            'title': _('%s administration') % app_name,
             'app_list': [app_dict],
             'root_path': self.root_path,
         }

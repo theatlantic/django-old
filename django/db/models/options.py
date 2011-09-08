@@ -25,7 +25,7 @@ DEFAULT_NAMES = ('verbose_name', 'verbose_name_plural', 'db_table', 'ordering',
                  'abstract', 'managed', 'proxy', 'auto_created')
 
 class Options(object):
-    def __init__(self, meta, app_label=None):
+    def __init__(self, meta, app_label=None, app_verbose_name=None):
         self.local_fields, self.local_many_to_many = [], []
         self.virtual_fields = []
         self.module_name, self.verbose_name = None, None
@@ -49,7 +49,7 @@ class Options(object):
         self.parents = SortedDict()
         self.duplicate_targets = {}
         self.auto_created = False
-
+        self.app_verbose_name = app_verbose_name
         # To handle various inheritance situations, we need to track where
         # managers came from (concrete or abstract base classes).
         self.abstract_managers = []
