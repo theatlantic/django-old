@@ -49,9 +49,13 @@ class ModelBase(type):
             # Figure out the app_label by looking one level up.
             # For 'django.contrib.sites.models', this would be 'sites'.
             model_module = sys.modules[new_class.__module__]
-            kwargs = {"app_label": model_module.__name__.split('.')[-2]}
+            parent_module_name = '.'.join(model_module.__name__.split('.')[0:-1])
+            parent_module = sys.modules[parent_module_name]
+            app_label = model_module.__name__.split('.')[-2]
+            app_verbose_name = getattr(parent_module, 'DJANGO_APP_VERBOSE_NAME', app_label.title())
+            kwargs = {"app_label": app_label, "app_verbose_name": app_verbose_name}
         else:
-            kwargs = {}
+            kwargs = {"app_verbose_name": meta.app_label.title()}
 
         new_class.add_to_class('_meta', Options(meta, **kwargs))
         if not abstract:
