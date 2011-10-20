@@ -1,6 +1,6 @@
 # #########################################################################
-# This bash script adds tab-completion feature to django-admin.py and
-# manage.py.
+# This bash script adds tab-completion feature to django-admin.py, manage,
+# and manage.py.
 #
 # Testing it out without installing
 # =================================
@@ -37,7 +37,7 @@ _django_completion()
                    COMP_CWORD=$COMP_CWORD \
 	               DJANGO_AUTO_COMPLETE=1 $1 ) )
 }
-complete -F _django_completion -o default django-admin.py manage.py django-admin
+complete -F _django_completion -o default django-admin.py manage.py django-admin manage
 
 _python_django_completion()
 {
@@ -46,7 +46,7 @@ _python_django_completion()
         echo $PYTHON_EXE | egrep "python([2-9]\.[0-9])?" >/dev/null 2>&1
         if [[ $? == 0 ]]; then
             PYTHON_SCRIPT=$( basename -- ${COMP_WORDS[1]} )
-            echo $PYTHON_SCRIPT | egrep "manage\.py|django-admin(\.py)?" >/dev/null 2>&1
+            echo $PYTHON_SCRIPT | egrep "manage(\.py)?|django-admin(\.py)?" >/dev/null 2>&1
             if [[ $? == 0 ]]; then
                 COMPREPLY=( $( COMP_WORDS="${COMP_WORDS[*]:1}" \
                                COMP_CWORD=$(( COMP_CWORD-1 )) \
