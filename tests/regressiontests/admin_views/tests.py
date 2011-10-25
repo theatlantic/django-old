@@ -28,7 +28,7 @@ from models import Article, BarAccount, CustomArticle, EmptyModel, \
     FooAccount, Gallery, ModelWithStringPrimaryKey, \
     Person, Persona, Picture, Podcast, Section, Subscriber, Vodcast, \
     Language, Collector, Widget, Grommet, DooHickey, FancyDoodad, Whatsit, \
-    Category, Post, Plot, FunkyTag
+    Category, Post, Plot, FunkyTag, WorkHour, Employee
 
 
 class AdminViewBasicTest(TestCase):
@@ -100,6 +100,22 @@ class AdminViewBasicTest(TestCase):
         }
         response = self.client.post('/test_admin/%s/admin_views/section/add/' % self.urlbit, post_data)
         self.assertEqual(response.status_code, 302) # redirect somewhere
+
+    def testPopupAddPost(self):
+        """
+        Ensure http response from a popup is properly escaped.
+        """
+        post_data = {
+            '_popup': u'1',
+            'title': u'title with a new\nline',
+            'content': u'some content',
+            'date_0': u'2010-09-10',
+            'date_1': u'14:55:39',
+        }
+        response = self.client.post('/test_admin/%s/admin_views/article/add/' % self.urlbit, post_data)
+        self.failUnlessEqual(response.status_code, 200)
+        self.assertContains(response, 'dismissAddAnotherPopup')
+        self.assertContains(response, 'title with a new\u000Aline')
 
     # Post data for edit inline
     inline_post_data = {
@@ -306,6 +322,21 @@ class AdminViewBasicTest(TestCase):
             self.client.get, "/test_admin/admin/admin_views/album/?owner__email__startswith=fuzzy"
         )
 
+        try:
+            self.client.get("/test_admin/admin/admin_views/person/?age__gt=30")
+        except SuspiciousOperation:
+            self.fail("Filters should be allowed if they involve a local field without the need to whitelist them in list_filter or date_hierarchy.")
+
+        e1 = Employee.objects.create(name='Anonymous', gender=1, age=22, alive=True, code='123')
+        e2 = Employee.objects.create(name='Visitor', gender=2, age=19, alive=True, code='124')
+        WorkHour.objects.create(datum=datetime.datetime.now(), employee=e1)
+        WorkHour.objects.create(datum=datetime.datetime.now(), employee=e2)
+        response = self.client.get("/test_admin/admin/admin_views/workhour/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'employee__person_ptr__exact')
+        response = self.client.get("/test_admin/admin/admin_views/workhour/?employee__person_ptr__exact=%d" % e1.pk)
+        self.assertEqual(response.status_code, 200)
+
 class SaveAsTests(TestCase):
     fixtures = ['admin-views-users.xml','admin-views-person.xml']
 
@@ -317,7 +348,7 @@ class SaveAsTests(TestCase):
 
     def test_save_as_duplication(self):
         """Ensure save as actually creates a new person"""
-        post_data = {'_saveasnew':'', 'name':'John M', 'gender':1}
+        post_data = {'_saveasnew':'', 'name':'John M', 'gender':1, 'age': 42}
         response = self.client.post('/test_admin/admin/admin_views/person/1/', post_data)
         self.assertEqual(len(Person.objects.filter(name='John M')), 1)
         self.assertEqual(len(Person.objects.filter(id=1)), 1)

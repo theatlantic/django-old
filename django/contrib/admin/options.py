@@ -18,7 +18,7 @@ from django.shortcuts import get_object_or_404, render_to_response
 from django.utils.decorators import method_decorator
 from django.utils.datastructures import SortedDict
 from django.utils.functional import update_wrapper
-from django.utils.html import escape
+from django.utils.html import escape, escapejs
 from django.utils.safestring import mark_safe
 from django.utils.functional import curry
 from django.utils.text import capfirst, get_text_list
@@ -203,8 +203,21 @@ class BaseModelAdmin(object):
 
         # Special case -- foo__id__exact and foo__id queries are implied
         # if foo has been specificially included in the lookup list; so
-        # drop __id if it is the last part.
-        if len(parts) > 1 and parts[-1] == self.model._meta.pk.name:
+        # drop __id if it is the last part. However, first we need to find
+        # the pk attribute name.
+        model = self.model
+        pk_attr_name = None
+        for part in parts[:-1]:
+            field, _, _, _ = model._meta.get_field_by_name(part)
+            if hasattr(field, 'rel'):
+                model = field.rel.to
+                pk_attr_name = model._meta.pk.name
+            elif isinstance(field, RelatedObject):
+                model = field.model
+                pk_attr_name = model._meta.pk.name
+            else:
+                pk_attr_name = None
+        if pk_attr_name and len(parts) > 1 and parts[-1] == pk_attr_name:
             parts.pop()
 
         try:
@@ -214,6 +227,8 @@ class BaseModelAdmin(object):
             # later.
             return True
         else:
+            if len(parts) == 1:
+                return True
             clean_lookup = LOOKUP_SEP.join(parts)
             return clean_lookup in self.list_filter or clean_lookup == self.date_hierarchy
 
@@ -315,17 +330,23 @@ class ModelAdmin(BaseModelAdmin):
     media = property(_media)
 
     def has_add_permission(self, request):
-        "Returns True if the given request has permission to add an object."
+        """
+        Returns True if the given request has permission to add an object.
+        Can be overriden by the user in subclasses.
+        """
         opts = self.opts
         return request.user.has_perm(opts.app_label + '.' + opts.get_add_permission())
 
     def has_change_permission(self, request, obj=None):
         """
         Returns True if the given request has permission to change the given
-        Django model instance.
+        Django model instance, the default implementation doesn't examine the
+        `obj` parameter.
 
-        If `obj` is None, this should return True if the given request has
-        permission to change *any* object of the given type.
+        Can be overriden by the user in subclasses. In such case it should
+        return True if the given request has permission to change the `obj`
+        model instance. If `obj` is None, this should return True if the given
+        request has permission to change *any* object of the given type.
         """
         opts = self.opts
         return request.user.has_perm(opts.app_label + '.' + opts.get_change_permission())
@@ -333,10 +354,13 @@ class ModelAdmin(BaseModelAdmin):
     def has_delete_permission(self, request, obj=None):
         """
         Returns True if the given request has permission to change the given
-        Django model instance.
+        Django model instance, the default implementation doesn't examine the
+        `obj` parameter.
 
-        If `obj` is None, this should return True if the given request has
-        permission to delete *any* object of the given type.
+        Can be overriden by the user in subclasses. In such case it should
+        return True if the given request has permission to delete the `obj`
+        model instance. If `obj` is None, this should return True if the given
+        request has permission to delete *any* object of the given type.
         """
         opts = self.opts
         return request.user.has_perm(opts.app_label + '.' + opts.get_delete_permission())
@@ -686,7 +710,7 @@ class ModelAdmin(BaseModelAdmin):
         if request.POST.has_key("_popup"):
             return HttpResponse('<script type="text/javascript">opener.dismissAddAnotherPopup(window, "%s", "%s");</script>' % \
                 # escape() calls force_unicode.
-                (escape(pk_value), escape(obj)))
+                (escape(pk_value), escapejs(obj)))
         elif request.POST.has_key("_addanother"):
             self.message_user(request, msg + ' ' + (_("You may add another %s below.") % force_unicode(opts.verbose_name)))
             return HttpResponseRedirect(request.path)

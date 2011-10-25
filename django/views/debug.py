@@ -212,34 +212,81 @@ class ExceptionReporter:
 
         return lower_bound, pre_context, context_line, post_context
 
+    def get_frame_data(self, tb, frame=None):
+        if frame is None:
+            lineno = tb.tb_lineno - 1
+            frame = tb.tb_frame
+            has_frame = False
+        else:
+            lineno = frame.f_lineno - 1
+            has_frame = True
+        
+        filename = frame.f_code.co_filename
+        function = frame.f_code.co_name
+        loader = frame.f_globals.get('__loader__')
+        module_name = frame.f_globals.get('__name__')
+        pre_context_lineno, pre_context, context_line, post_context = self._get_lines_from_file(filename, lineno, 7, loader, module_name)
+        if pre_context_lineno is not None:
+            return {
+                'tb': tb,
+                'filename': filename,
+                'function': function,
+                'module_name': module_name,
+                'lineno': lineno + 1,
+                'vars': tb.tb_frame.f_locals.items(),
+                'id': id(frame),
+                'pre_context': pre_context,
+                'context_line': context_line,
+                'post_context': post_context,
+                'pre_context_lineno': pre_context_lineno + 1,
+            }
+        else:
+            return None
+        
+            
+    
     def get_traceback_frames(self):
         frames = []
         tb = self.tb
+        frame = tb.tb_frame
+        pos = 0
+        stop = None
+        while frame is not None:
+            pos += 1
+            if frame.f_locals.get('__traceback_hide__'):
+                frame = frame.f_back
+                continue
+            frame_data = self.get_frame_data(tb, frame)
+            if frame_data is None:
+                continue
+            call_str = '%s.%s()' % (frame_data['module_name'], frame_data['function'])
+            if call_str in (
+                'django.core.servers.basehttp.__init__()',
+                'django.core.servers.basehttp.run()',
+                'django.core.management.commands.runserver.inner_run()',
+                'django.core.handlers.base.get_response()',
+            ):
+                stop = pos
+            elif frame_data['module_name'] == 'SocketServer':
+                stop = pos
+            
+            frames.append(frame_data)
+            frame = frame.f_back
+        if stop is not None:
+            frames = frames[stop:]        
+        frames.reverse()
+        
         while tb is not None:
             # support for __traceback_hide__ which is used by a few libraries
             # to hide internal frames.
             if tb.tb_frame.f_locals.get('__traceback_hide__'):
                 tb = tb.tb_next
                 continue
-            filename = tb.tb_frame.f_code.co_filename
-            function = tb.tb_frame.f_code.co_name
-            lineno = tb.tb_lineno - 1
-            loader = tb.tb_frame.f_globals.get('__loader__')
-            module_name = tb.tb_frame.f_globals.get('__name__')
-            pre_context_lineno, pre_context, context_line, post_context = self._get_lines_from_file(filename, lineno, 7, loader, module_name)
-            if pre_context_lineno is not None:
-                frames.append({
-                    'tb': tb,
-                    'filename': filename,
-                    'function': function,
-                    'lineno': lineno + 1,
-                    'vars': tb.tb_frame.f_locals.items(),
-                    'id': id(tb),
-                    'pre_context': pre_context,
-                    'context_line': context_line,
-                    'post_context': post_context,
-                    'pre_context_lineno': pre_context_lineno + 1,
-                })
+            
+            frame_data = self.get_frame_data(tb)
+            if frame_data is None:
+                continue
+            frames.append(frame_data)
             tb = tb.tb_next
 
         if not frames:

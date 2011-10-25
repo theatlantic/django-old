@@ -230,9 +230,11 @@ class RelatedFieldWidgetWrapper(forms.Widget):
         info = (rel_to._meta.app_label, rel_to._meta.object_name.lower())
         try:
             related_url = reverse('admin:%s_%s_add' % info, current_app=self.admin_site.name)
+            related_edit_url = reverse('admin:%s_%s_changelist' % info, current_app=self.admin_site.name)
         except NoReverseMatch:
             info = (self.admin_site.root_path, rel_to._meta.app_label, rel_to._meta.object_name.lower())
             related_url = '%s%s/%s/add/' % info
+            related_edit_url = '%s%s/%s/' % info
         self.widget.choices = self.choices
         output = [self.widget.render(name, value, *args, **kwargs)]
         if rel_to in self.admin_site._registry: # If the related object has an admin interface:
@@ -240,7 +242,7 @@ class RelatedFieldWidgetWrapper(forms.Widget):
             # API to determine the ID dynamically.
             output.append(u'<a href="%s" class="add-another" id="add_id_%s" onclick="return showAddAnotherPopup(this);"> ' % \
                 (related_url, name))
-            output.append(u'<img src="%simg/admin/icon_addlink.gif" width="10" height="10" alt="%s"/></a>' % (settings.ADMIN_MEDIA_PREFIX, _('Add Another')))
+            output.append(u'<img src="%simg/admin/icon_addlink.gif" width="10" height="10" alt="%s"/></a><a href="%s" class="edit-another" id="edit_id_%s" onclick="return showEditAnotherPopup(this);">Edit</a>' % (settings.ADMIN_MEDIA_PREFIX, _('Add Another'), related_edit_url, name))
         return mark_safe(u''.join(output))
 
     def build_attrs(self, extra_attrs=None, **kwargs):
