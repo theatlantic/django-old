@@ -10,6 +10,12 @@ from django.utils.encoding import smart_str
 from django.utils.hashcompat import md5_constructor, sha_constructor
 from django.utils.translation import ugettext_lazy as _
 
+try:
+    from caching.base import CachingMixin, CachingManager
+except ImportError:
+    class CachingMixin(object):
+        pass
+    CachingManager = models.Manager
 
 UNUSABLE_PASSWORD = '!' # This will never be a valid hash
 
@@ -101,7 +107,7 @@ class Group(models.Model):
     def __unicode__(self):
         return self.name
 
-class UserManager(models.Manager):
+class UserManager(CachingManager):
     def create_user(self, username, email, password=None):
         """
         Creates and saves a User with the given username, e-mail and password.
@@ -183,7 +189,7 @@ def _user_has_module_perms(user, app_label):
     return False
 
 
-class User(models.Model):
+class User(CachingMixin, models.Model):
     """
     Users within the Django authentication system are represented by this model.
 
