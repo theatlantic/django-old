@@ -329,7 +329,7 @@ class QuerySet(object):
         if self._result_cache is not None and not self._iter:
             return len(self._result_cache)
 
-        return self.query.get_count(using=self.db)
+        return self.without_hints().query.get_count(using=self.db)
 
     def get(self, *args, **kwargs):
         """
@@ -735,6 +735,11 @@ class QuerySet(object):
             clone.query.add_hint(self.model, hint)
         for model, hint in kwargs.items():
             clone.query.add_hint(model, hint)
+        return clone
+
+    def without_hints(self):
+        clone = self._clone()
+        clone.query.hints = {}
         return clone
         
     ###################################
