@@ -16,7 +16,7 @@ from forms import BaseForm, get_declared_fields
 from fields import Field, ChoiceField
 from widgets import SelectMultiple, HiddenInput, MultipleHiddenInput
 from widgets import media_property
-from formsets import BaseFormSet, formset_factory, DELETION_FIELD_NAME
+from formsets import BaseFormSet, formset_factory
 
 __all__ = (
     'ModelForm', 'BaseModelForm', 'model_to_dict', 'fields_for_model',
@@ -522,7 +522,7 @@ class BaseModelFormSet(BaseFormSet):
                         # poke error messages into the right places and mark
                         # the form as invalid
                         errors.append(self.get_unique_error_message(unique_check))
-                        form._errors[NON_FIELD_ERRORS] = self.get_form_error()
+                        form._errors[NON_FIELD_ERRORS] = self.error_class([self.get_form_error()])
                         del form.cleaned_data
                         break
                     # mark the data as seen
@@ -553,7 +553,7 @@ class BaseModelFormSet(BaseFormSet):
                         # poke error messages into the right places and mark
                         # the form as invalid
                         errors.append(self.get_date_error_message(date_check))
-                        form._errors[NON_FIELD_ERRORS] = self.get_form_error()
+                        form._errors[NON_FIELD_ERRORS] = self.error_class([self.get_form_error()])
                         del form.cleaned_data
                         break
                     seen_data.add(data)
@@ -599,13 +599,10 @@ class BaseModelFormSet(BaseFormSet):
             pk_value = getattr(pk_value, 'pk', pk_value)
 
             obj = self._existing_object(pk_value)
-            if self.can_delete:
-                raw_delete_value = form._raw_value(DELETION_FIELD_NAME)
-                should_delete = form.fields[DELETION_FIELD_NAME].clean(raw_delete_value)
-                if should_delete:
-                    self.deleted_objects.append(obj)
-                    obj.delete()
-                    continue
+            if self.can_delete and self._should_delete_form(form):
+                self.deleted_objects.append(obj)
+                obj.delete()
+                continue
             if form.has_changed():
                 self.changed_objects.append((obj, form.changed_data))
                 saved_instances.append(self.save_existing(form, obj, commit=commit))
@@ -620,11 +617,8 @@ class BaseModelFormSet(BaseFormSet):
                 continue
             # If someone has marked an add form for deletion, don't save the
             # object.
-            if self.can_delete:
-                raw_delete_value = form._raw_value(DELETION_FIELD_NAME)
-                should_delete = form.fields[DELETION_FIELD_NAME].clean(raw_delete_value)
-                if should_delete:
-                    continue
+            if self.can_delete and self._should_delete_form(form):
+                continue
             self.new_objects.append(self.save_new(form, commit=commit))
             if not commit:
                 self.saved_forms.append(form)
@@ -690,13 +684,9 @@ class BaseInlineFormSet(BaseModelFormSet):
         self.save_as_new = save_as_new
         # is there a better way to get the object descriptor?
         self.rel_name = RelatedObject(self.fk.rel.to, self.model, self.fk).get_accessor_name()
-        if self.fk.rel.field_name == self.fk.rel.to._meta.pk.name:
-            backlink_value = self.instance
-        else:
-            backlink_value = getattr(self.instance, self.fk.rel.field_name)
         if queryset is None:
             queryset = self.model._default_manager
-        qs = queryset.filter(**{self.fk.name: backlink_value})
+        qs = queryset.filter(**{self.fk.name: self.instance})
         super(BaseInlineFormSet, self).__init__(data, files, prefix=prefix,
                                                 queryset=qs)
 
@@ -705,10 +695,6 @@ class BaseInlineFormSet(BaseModelFormSet):
             return 0
         return super(BaseInlineFormSet, self).initial_form_count()
 
-    def total_form_count(self):
-        if self.save_as_new:
-            return super(BaseInlineFormSet, self).initial_form_count()
-        return super(BaseInlineFormSet, self).total_form_count()
 
     def _construct_form(self, i, **kwargs):
         form = super(BaseInlineFormSet, self)._construct_form(i, **kwargs)
@@ -1025,13 +1011,14 @@ class ModelMultipleChoiceField(ModelChoiceField):
             return []
         if not isinstance(value, (list, tuple)):
             raise ValidationError(self.error_messages['list'])
+        key = self.to_field_name or 'pk'
         for pk in value:
             try:
-                self.queryset.filter(pk=pk)
+                self.queryset.filter(**{key: pk})
             except ValueError:
                 raise ValidationError(self.error_messages['invalid_pk_value'] % pk)
-        qs = self.queryset.filter(pk__in=value)
-        pks = set([force_unicode(o.pk) for o in qs])
+        qs = self.queryset.filter(**{'%s__in' % key: value})
+        pks = set([force_unicode(getattr(o, key)) for o in qs])
         for val in value:
             if force_unicode(val) not in pks:
                 raise ValidationError(self.error_messages['invalid_choice'] % val)

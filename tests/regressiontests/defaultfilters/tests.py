@@ -29,6 +29,13 @@ class DefaultFiltersTests(unittest.TestCase):
         self.assertEqual(floatformat(u'¿Cómo esta usted?'), u'')
         self.assertEqual(floatformat(None), u'')
 
+        # Check that we're not converting to scientific notation.
+        self.assertEqual(floatformat(0, 6), u'0.000000')
+        self.assertEqual(floatformat(0, 7), u'0.0000000')
+        self.assertEqual(floatformat(0, 10), u'0.0000000000')
+        self.assertEqual(floatformat(0.000000000000000000015, 20),
+                                     u'0.00000000000000000002')
+
         pos_inf = float(1e30000)
         self.assertEqual(floatformat(pos_inf), unicode(pos_inf))
 
@@ -45,6 +52,12 @@ class DefaultFiltersTests(unittest.TestCase):
                 return self.value
 
         self.assertEqual(floatformat(FloatWrapper(11.000001), -2), u'11.00')
+
+    # This would fail because of Python's float handling. Floats with many zeroes
+    # after the decimal point should be passed in as another type such as
+    # unicode or Decimal.
+    #def test_floatformat_fail(self):
+    #    self.assertEqual(floatformat(1.00000000000000015, 16), u'1.0000000000000002')
 
     def test_addslashes(self):
         self.assertEqual(addslashes(u'"double quotes" and \'single quotes\''),
@@ -438,6 +451,28 @@ class DefaultFiltersTests(unittest.TestCase):
         self.assertEqual(filesizeformat(""), u'0 bytes')
         self.assertEqual(filesizeformat(u"\N{GREEK SMALL LETTER ALPHA}"),
                           u'0 bytes')
+
+    def test_localized_filesizeformat(self):
+        from django.utils.translation import activate, deactivate
+        old_localize = settings.USE_L10N
+        try:
+            activate('de')
+            settings.USE_L10N = True
+            self.assertEqual(filesizeformat(1023), u'1023 Bytes')
+            self.assertEqual(filesizeformat(1024), u'1,0 KB')
+            self.assertEqual(filesizeformat(10*1024), u'10,0 KB')
+            self.assertEqual(filesizeformat(1024*1024-1), u'1024,0 KB')
+            self.assertEqual(filesizeformat(1024*1024), u'1,0 MB')
+            self.assertEqual(filesizeformat(1024*1024*50), u'50,0 MB')
+            self.assertEqual(filesizeformat(1024*1024*1024-1), u'1024,0 MB')
+            self.assertEqual(filesizeformat(1024*1024*1024), u'1,0 GB')
+            self.assertEqual(filesizeformat(complex(1,-1)), u'0 Bytes')
+            self.assertEqual(filesizeformat(""), u'0 Bytes')
+            self.assertEqual(filesizeformat(u"\N{GREEK SMALL LETTER ALPHA}"),
+                              u'0 Bytes')
+        finally:
+            deactivate()
+            settings.USE_L10N = old_localize
 
     def test_pluralize(self):
         self.assertEqual(pluralize(1), u'')

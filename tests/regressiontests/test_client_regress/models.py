@@ -9,6 +9,7 @@ from django.core.exceptions import SuspiciousOperation
 from django.core.urlresolvers import reverse
 from django.template import (TemplateDoesNotExist, TemplateSyntaxError,
     Context, loader)
+import django.template.context
 from django.test import TestCase, Client
 from django.test.client import encode_file
 from django.test.utils import ContextList
@@ -648,6 +649,17 @@ class ContextTests(TestCase):
         except KeyError, e:
             self.assertEquals(e.args[0], 'does-not-exist')
 
+    def test_15368(self):
+        # Need to insert a context processor that assumes certain things about
+        # the request instance. This triggers a bug caused by some ways of
+        # copying RequestContext.
+        try:
+            django.template.context._standard_context_processors = (lambda request: {'path': request.special_path},)
+            response = self.client.get("/test_client_regress/request_context_view/")
+            self.assertContains(response, 'Path: /test_client_regress/request_context_view/')
+        finally:
+            django.template.context._standard_context_processors = None
+
 
 class SessionTests(TestCase):
     fixtures = ['testdata.json']
@@ -844,8 +856,11 @@ class UploadedFileEncodingTest(TestCase):
                          encode_file('IGNORE', 'IGNORE', DummyFile("file.bin"))[2])
         self.assertEqual('Content-Type: text/plain',
                          encode_file('IGNORE', 'IGNORE', DummyFile("file.txt"))[2])
-        self.assertEqual('Content-Type: application/zip',
-                         encode_file('IGNORE', 'IGNORE', DummyFile("file.zip"))[2])
+        self.assertTrue(encode_file('IGNORE', 'IGNORE', DummyFile("file.zip"))[2] in (
+                        'Content-Type: application/x-compress',
+                        'Content-Type: application/x-zip',
+                        'Content-Type: application/x-zip-compressed',
+                        'Content-Type: application/zip'))
         self.assertEqual('Content-Type: application/octet-stream',
                          encode_file('IGNORE', 'IGNORE', DummyFile("file.unknown"))[2])
 

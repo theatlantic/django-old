@@ -8,10 +8,12 @@ import pickle
 from django.conf import settings
 from django.template import Template, Context
 from django.test import TestCase
-from django.utils.formats import get_format, date_format, time_format, localize, localize_input, iter_format_modules
+from django.utils.formats import (get_format, date_format, time_format,
+    localize, localize_input, iter_format_modules, get_format_modules)
 from django.utils.numberformat import format as nformat
 from django.utils.safestring import mark_safe, SafeString, SafeUnicode
-from django.utils.translation import ugettext, ugettext_lazy, activate, deactivate, gettext_lazy, to_locale
+from django.utils.translation import (ugettext, ugettext_lazy, activate,
+        deactivate, gettext_lazy, to_locale, get_language)
 from django.utils.importlib import import_module
 
 
@@ -231,10 +233,8 @@ class FormattingTests(TestCase):
             deactivate()
 
     def test_l10n_enabled(self):
-        """
-        Catalan locale
-        """
         settings.USE_L10N = True
+        # Catalan locale
         activate('ca')
         try:
             self.assertEqual('j \de F \de Y', get_format('DATE_FORMAT'))
@@ -322,8 +322,6 @@ class FormattingTests(TestCase):
             deactivate()
 
         # English locale
-
-        settings.USE_L10N = True
         activate('en')
         try:
             self.assertEqual('N j, Y', get_format('DATE_FORMAT'))
@@ -457,13 +455,23 @@ class FormattingTests(TestCase):
         Tests the iter_format_modules function always yields format modules in
         a stable and correct order in presence of both base ll and ll_CC formats.
         """
+        settings.USE_L10N = True
+        en_format_mod = import_module('django.conf.locale.en.formats')
+        en_gb_format_mod = import_module('django.conf.locale.en_GB.formats')
+        self.assertEqual(list(iter_format_modules('en-gb')), [en_gb_format_mod, en_format_mod])
+
+    def test_get_format_modules_stability(self):
+        activate('de')
+        old_format_module_path = settings.FORMAT_MODULE_PATH
+        settings.FORMAT_MODULE_PATH = 'regressiontests.i18n.other.locale'
         try:
-            old_l10n, settings.USE_L10N = settings.USE_L10N, True
-            en_format_mod = import_module('django.conf.locale.en.formats')
-            en_gb_format_mod = import_module('django.conf.locale.en_GB.formats')
-            self.assertEqual(list(iter_format_modules('en-gb')), [en_gb_format_mod, en_format_mod])
+            settings.USE_L10N = True
+            old = "%r" % get_format_modules(reverse=True)
+            new = "%r" % get_format_modules(reverse=True) # second try
+            self.assertEqual(new, old, 'Value returned by get_formats_modules() must be preserved between calls.')
         finally:
-            settings.USE_L10N = old_l10n
+            settings.FORMAT_MODULE_PATH = old_format_module_path
+            deactivate()
 
 
 class MiscTests(TestCase):
@@ -678,3 +686,134 @@ class TestModels(TestCase):
         c.save()
         c.name = SafeString(u'Iñtërnâtiônàlizætiøn1'.encode('utf-8'))
         c.save()
+
+
+class MultipleLocaleActivationTests(TestCase):
+    """
+    Tests for template rendering behavior when multiple locales are activated
+    during the lifetime of the same process.
+    """
+    def setUp(self):
+        self._old_language = get_language()
+
+    def tearDown(self):
+        activate(self._old_language)
+
+    def test_single_locale_activation(self):
+        """
+        Simple baseline behavior with one locale for all the supported i18n constructs.
+        """
+        activate('fr')
+        self.assertEqual(Template("{{ _('Yes') }}").render(Context({})), 'Oui')
+        self.assertEqual(Template("{% load i18n %}{% trans 'Yes' %}").render(Context({})), 'Oui')
+        self.assertEqual(Template("{% load i18n %}{% blocktrans %}Yes{% endblocktrans %}").render(Context({})), 'Oui')
+
+    # Literal marked up with _() in a filter expression
+
+    def test_multiple_locale_filter(self):
+        activate('de')
+        t = Template("{% load i18n %}{{ 0|yesno:_('yes,no,maybe') }}")
+        activate(self._old_language)
+        activate('nl')
+        self.assertEqual(t.render(Context({})), 'nee')
+
+    def test_multiple_locale_filter_deactivate(self):
+        activate('de')
+        t = Template("{% load i18n %}{{ 0|yesno:_('yes,no,maybe') }}")
+        deactivate()
+        activate('nl')
+        self.assertEqual(t.render(Context({})), 'nee')
+
+    def test_multiple_locale_filter_direct_switch(self):
+        activate('de')
+        t = Template("{% load i18n %}{{ 0|yesno:_('yes,no,maybe') }}")
+        activate('nl')
+        self.assertEqual(t.render(Context({})), 'nee')
+
+    # Literal marked up with _()
+
+    def test_multiple_locale(self):
+        activate('de')
+        t = Template("{{ _('No') }}")
+        activate(self._old_language)
+        activate('nl')
+        self.assertEqual(t.render(Context({})), 'Nee')
+
+    def test_multiple_locale_deactivate(self):
+        activate('de')
+        t = Template("{{ _('No') }}")
+        deactivate()
+        activate('nl')
+        self.assertEqual(t.render(Context({})), 'Nee')
+
+    def test_multiple_locale_direct_switch(self):
+        activate('de')
+        t = Template("{{ _('No') }}")
+        activate('nl')
+        self.assertEqual(t.render(Context({})), 'Nee')
+
+    # Literal marked up with _(), loading the i18n template tag library
+
+    def test_multiple_locale_loadi18n(self):
+        activate('de')
+        t = Template("{% load i18n %}{{ _('No') }}")
+        activate(self._old_language)
+        activate('nl')
+        self.assertEqual(t.render(Context({})), 'Nee')
+
+    def test_multiple_locale_loadi18n_deactivate(self):
+        activate('de')
+        t = Template("{% load i18n %}{{ _('No') }}")
+        deactivate()
+        activate('nl')
+        self.assertEqual(t.render(Context({})), 'Nee')
+
+    def test_multiple_locale_loadi18n_direct_switch(self):
+        activate('de')
+        t = Template("{% load i18n %}{{ _('No') }}")
+        activate('nl')
+        self.assertEqual(t.render(Context({})), 'Nee')
+
+    # trans i18n tag
+
+    def test_multiple_locale_trans(self):
+        activate('de')
+        t = Template("{% load i18n %}{% trans 'No' %}")
+        activate(self._old_language)
+        activate('nl')
+        self.assertEqual(t.render(Context({})), 'Nee')
+
+    def test_multiple_locale_deactivate_trans(self):
+        activate('de')
+        t = Template("{% load i18n %}{% trans 'No' %}")
+        deactivate()
+        activate('nl')
+        self.assertEqual(t.render(Context({})), 'Nee')
+
+    def test_multiple_locale_direct_switch_trans(self):
+        activate('de')
+        t = Template("{% load i18n %}{% trans 'No' %}")
+        activate('nl')
+        self.assertEqual(t.render(Context({})), 'Nee')
+
+    # blocktrans i18n tag
+
+    def test_multiple_locale_btrans(self):
+        activate('de')
+        t = Template("{% load i18n %}{% blocktrans %}No{% endblocktrans %}")
+        activate(self._old_language)
+        activate('nl')
+        self.assertEqual(t.render(Context({})), 'Nee')
+
+    def test_multiple_locale_deactivate_btrans(self):
+        activate('de')
+        t = Template("{% load i18n %}{% blocktrans %}No{% endblocktrans %}")
+        deactivate()
+        activate('nl')
+        self.assertEqual(t.render(Context({})), 'Nee')
+
+    def test_multiple_locale_direct_switch_btrans(self):
+        activate('de')
+        t = Template("{% load i18n %}{% blocktrans %}No{% endblocktrans %}")
+        activate('nl')
+        self.assertEqual(t.render(Context({})), 'Nee')

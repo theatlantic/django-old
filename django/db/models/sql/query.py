@@ -448,6 +448,8 @@ class Query(object):
             "Cannot combine a unique query with a non-unique query."
 
         self.remove_inherited_models()
+        l_tables = set([a for a in self.tables if self.alias_refcount[a]])
+        r_tables = set([a for a in rhs.tables if rhs.alias_refcount[a]])
         # Work out how to relabel the rhs aliases, if necessary.
         change_map = {}
         used = set()
@@ -465,13 +467,19 @@ class Query(object):
             first = False
 
         # So that we don't exclude valid results in an "or" query combination,
-        # the first join that is exclusive to the lhs (self) must be converted
+        # all joins exclusive to either the lhs or the rhs must be converted
         # to an outer join.
         if not conjunction:
-            for alias in self.tables[1:]:
-                if self.alias_refcount[alias] == 1:
-                    self.promote_alias(alias, True)
-                    break
+            # Update r_tables aliases.
+            for alias in change_map:
+                if alias in r_tables:
+                    r_tables.remove(alias)
+                    r_tables.add(change_map[alias])
+            # Find aliases that are exclusive to rhs or lhs.
+            # These are promoted to outer joins.
+            outer_aliases = (l_tables | r_tables) - (l_tables & r_tables)
+            for alias in outer_aliases:
+                self.promote_alias(alias, True)
 
         # Now relabel a copy of the rhs where-clause and add it to the current
         # one.
@@ -1285,12 +1293,14 @@ class Query(object):
                                 to_col2, opts, target) = cached_data
                     else:
                         table1 = field.m2m_db_table()
-                        from_col1 = opts.pk.column
+                        from_col1 = opts.get_field_by_name(
+                            field.m2m_target_field_name())[0].column
                         to_col1 = field.m2m_column_name()
                         opts = field.rel.to._meta
                         table2 = opts.db_table
                         from_col2 = field.m2m_reverse_name()
-                        to_col2 = opts.pk.column
+                        to_col2 = opts.get_field_by_name(
+                            field.m2m_reverse_target_field_name())[0].column
                         target = opts.pk
                         orig_opts._join_cache[name] = (table1, from_col1,
                                 to_col1, table2, from_col2, to_col2, opts,
@@ -1338,12 +1348,14 @@ class Query(object):
                                 to_col2, opts, target) = cached_data
                     else:
                         table1 = field.m2m_db_table()
-                        from_col1 = opts.pk.column
+                        from_col1 = opts.get_field_by_name(
+                            field.m2m_reverse_target_field_name())[0].column
                         to_col1 = field.m2m_reverse_name()
                         opts = orig_field.opts
                         table2 = opts.db_table
                         from_col2 = field.m2m_column_name()
-                        to_col2 = opts.pk.column
+                        to_col2 = opts.get_field_by_name(
+                            field.m2m_target_field_name())[0].column
                         target = opts.pk
                         orig_opts._join_cache[name] = (table1, from_col1,
                                 to_col1, table2, from_col2, to_col2, opts,
@@ -1367,7 +1379,12 @@ class Query(object):
                         table = opts.db_table
                         from_col = local_field.column
                         to_col = field.column
-                        target = opts.pk
+                        # In case of a recursive FK, use the to_field for
+                        # reverse lookups as well
+                        if orig_field.model is local_field.model:
+                            target = opts.get_field(field.rel.field_name)
+                        else:
+                            target = opts.pk
                         orig_opts._join_cache[name] = (table, from_col, to_col,
                                 opts, target)
 
@@ -1467,6 +1484,13 @@ class Query(object):
         query.bump_prefix()
         query.clear_ordering(True)
         query.set_start(prefix)
+        # Adding extra check to make sure the selected field will not be null
+        # since we are adding a IN <subquery> clause. This prevents the
+        # database from tripping over IN (...,NULL,...) selects and returning
+        # nothing
+        alias, col = query.select[0]
+        query.where.add((Constraint(alias, col, None), 'isnull', False), AND)
+
         self.add_filter(('%s__in' % prefix, query), negate=True, trim=True,
                 can_reuse=can_reuse)
 

@@ -1,6 +1,7 @@
 import types
 import sys
 from itertools import izip
+
 import django.db.models.manager     # Imported to register signal handler.
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned, FieldError, ValidationError, NON_FIELD_ERRORS
 from django.core import validators
@@ -359,6 +360,7 @@ class Model(object):
                     pass
             if kwargs:
                 raise TypeError("'%s' is an invalid keyword argument for this function" % kwargs.keys()[0])
+        super(Model, self).__init__()
         signals.post_init.send(sender=self.__class__, instance=self)
 
     def __repr__(self):
@@ -612,7 +614,7 @@ class Model(object):
 
         for related in self._meta.get_all_related_many_to_many_objects():
             if related.field.rel.through:
-                db = router.db_for_write(related.field.rel.through.__class__, instance=self)
+                db = router.db_for_write(related.field.rel.through, instance=self)
                 opts = related.field.rel.through._meta
                 reverse_field_name = related.field.m2m_reverse_field_name()
                 nullable = opts.get_field(reverse_field_name).null
@@ -622,7 +624,7 @@ class Model(object):
 
         for f in self._meta.many_to_many:
             if f.rel.through:
-                db = router.db_for_write(f.rel.through.__class__, instance=self)
+                db = router.db_for_write(f.rel.through, instance=self)
                 opts = f.rel.through._meta
                 field_name = f.m2m_field_name()
                 nullable = opts.get_field(field_name).null

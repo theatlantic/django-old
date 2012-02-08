@@ -185,7 +185,16 @@ class BaseModelAdmin(object):
     def get_readonly_fields(self, request, obj=None):
         return self.readonly_fields
 
-    def lookup_allowed(self, lookup):
+    def lookup_allowed(self, lookup, value):
+        model = self.model
+        # Check FKey lookups that are allowed, so that popups produced by
+        # ForeignKeyRawIdWidget, on the basis of ForeignKey.limit_choices_to,
+        # are allowed to work.
+        for l in model._meta.related_fkey_lookups:
+            for k, v in widgets.url_params_from_lookup_dict(l).items():
+                if k == lookup and v == value:
+                    return True
+
         parts = lookup.split(LOOKUP_SEP)
 
         # Last term in lookup is a query term (__exact, __startswith etc)
@@ -197,7 +206,6 @@ class BaseModelAdmin(object):
         # if foo has been specificially included in the lookup list; so
         # drop __id if it is the last part. However, first we need to find
         # the pk attribute name.
-        model = self.model
         pk_attr_name = None
         for part in parts[:-1]:
             field, _, _, _ = model._meta.get_field_by_name(part)
@@ -528,7 +536,7 @@ class ModelAdmin(BaseModelAdmin):
         # If self.actions is explicitally set to None that means that we don't
         # want *any* actions enabled on this page.
         if self.actions is None:
-            return []
+            return SortedDict()
 
         actions = []
 
@@ -723,9 +731,16 @@ class ModelAdmin(BaseModelAdmin):
         Determines the HttpResponse for the change_view stage.
         """
         opts = obj._meta
+
+        # Handle proxy models automatically created by .only() or .defer()
+        verbose_name = opts.verbose_name
+        if obj._deferred:
+            opts_ = opts.proxy_for_model._meta
+            verbose_name = opts_.verbose_name
+
         pk_value = obj._get_pk_val()
 
-        msg = _('The %(name)s "%(obj)s" was changed successfully.') % {'name': force_unicode(opts.verbose_name), 'obj': force_unicode(obj)}
+        msg = _('The %(name)s "%(obj)s" was changed successfully.') % {'name': force_unicode(verbose_name), 'obj': force_unicode(obj)}
         if request.POST.has_key("_continue"):
             self.message_user(request, msg + ' ' + _("You may edit it again below."))
             if request.REQUEST.has_key('_popup'):
@@ -733,15 +748,21 @@ class ModelAdmin(BaseModelAdmin):
             else:
                 return HttpResponseRedirect(request.path)
         elif request.POST.has_key("_saveasnew"):
-            msg = _('The %(name)s "%(obj)s" was added successfully. You may edit it again below.') % {'name': force_unicode(opts.verbose_name), 'obj': obj}
+            msg = _('The %(name)s "%(obj)s" was added successfully. You may edit it again below.') % {'name': force_unicode(verbose_name), 'obj': obj}
             self.message_user(request, msg)
             return HttpResponseRedirect("../%s/" % pk_value)
         elif request.POST.has_key("_addanother"):
-            self.message_user(request, msg + ' ' + (_("You may add another %s below.") % force_unicode(opts.verbose_name)))
+            self.message_user(request, msg + ' ' + (_("You may add another %s below.") % force_unicode(verbose_name)))
             return HttpResponseRedirect("../add/")
         else:
             self.message_user(request, msg)
-            return HttpResponseRedirect("../")
+            # Figure out where to redirect. If the user has change permission,
+            # redirect to the change-list page for this object. Otherwise,
+            # redirect to the admin index.
+            if self.has_change_permission(request, None):
+                return HttpResponseRedirect('../')
+            else:
+                return HttpResponseRedirect('../../../')
 
     def response_action(self, request, queryset):
         """

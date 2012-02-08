@@ -79,7 +79,7 @@ class QuerySet(object):
             else:
                 self._result_cache = list(self.iterator())
         elif self._iter:
-            self._result_cache.extend(list(self._iter))
+            self._result_cache.extend(self._iter)
         return len(self._result_cache)
 
     def __iter__(self):
@@ -417,6 +417,7 @@ class QuerySet(object):
             return {}
         qs = self._clone()
         qs.query.add_filter(('pk__in', id_list))
+        qs.query.clear_ordering(force_empty=True)
         return dict([(obj._get_pk_val(), obj) for obj in qs.iterator()])
 
     def delete(self):
@@ -631,17 +632,18 @@ class QuerySet(object):
         """
         for arg in args:
             if arg.default_alias in kwargs:
-                raise ValueError("The %s named annotation conflicts with the "
+                raise ValueError("The named annotation '%s' conflicts with the "
                                  "default name for another annotation."
                                  % arg.default_alias)
             kwargs[arg.default_alias] = arg
 
-        names = set(self.model._meta.get_all_field_names())
+        names = getattr(self, '_fields', None)
+        if names is None:
+            names = set(self.model._meta.get_all_field_names())
         for aggregate in kwargs:
             if aggregate in names:
-                raise ValueError("The %s annotation conflicts with a field on "
+                raise ValueError("The annotation '%s' conflicts with a field on "
                     "the model." % aggregate)
-
 
         obj = self._clone()
 

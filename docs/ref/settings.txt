@@ -1504,6 +1504,12 @@ used instead of a string. The first item in the tuple should be the ``Loader``'s
 module, subsequent items are passed to the ``Loader`` during initialization. See
 :doc:`/ref/templates/api`.
 
+.. versionchanged:: 1.2
+    The class-based API for template loaders was introduced in Django 1.2
+    although  the ``TEMPLATE_LOADERS`` setting will accept strings that specify
+    function-based loaders until compatibility with them is completely removed in
+    Django 1.4.
+
 .. setting:: TEMPLATE_STRING_IF_INVALID
 
 TEMPLATE_STRING_IF_INVALID
@@ -1691,6 +1697,19 @@ and ``NUMBER_GROUPING`` from current locale, to format the number.
 ``USE_L10N`` must be set to ``True``, in order to format numbers.
 
 See also ``THOUSAND_SEPARATOR`` and ``NUMBER_GROUPING``.
+
+.. setting:: USE_X_FORWARDED_HOST
+
+USE_X_FORWARDED_HOST
+--------------------
+
+.. versionadded:: 1.3.1
+
+Default: ``False``
+
+A boolean that specifies whether to use the X-Forwarded-Host header in
+preference to the Host header. This should only be enabled if a proxy
+which sets this header is in use.
 
 .. setting:: YEAR_MONTH_FORMAT
 
