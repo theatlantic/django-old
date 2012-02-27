@@ -20,7 +20,7 @@ except NameError:
 get_verbose_name = lambda class_name: re.sub('(((?<=[a-z])[A-Z])|([A-Z](?![A-Z]|$)))', ' \\1', class_name).lower().strip()
 
 DEFAULT_NAMES = ('verbose_name', 'verbose_name_plural', 'db_table', 'ordering',
-                 'unique_together', 'permissions', 'get_latest_by',
+                 'unique_together', 'permissions', 'get_latest_by', 'db_seq',
                  'order_with_respect_to', 'app_label', 'db_tablespace',
                  'abstract', 'managed', 'proxy', 'auto_created')
 
@@ -31,6 +31,7 @@ class Options(object):
         self.module_name, self.verbose_name = None, None
         self.verbose_name_plural = None
         self.db_table = ''
+        self.db_seq = ''
         self.ordering = []
         self.unique_together =  []
         self.permissions =  []

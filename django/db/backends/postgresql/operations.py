@@ -6,6 +6,8 @@ from django.db.backends import BaseDatabaseOperations
 # used by both the 'postgresql' and 'postgresql_psycopg2' backends.
 
 class DatabaseOperations(BaseDatabaseOperations):
+    compiler_module = "django.db.backends.postgresql.compiler"
+
     def __init__(self, connection):
         super(DatabaseOperations, self).__init__()
         self._postgres_version = None
