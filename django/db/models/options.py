@@ -1,4 +1,5 @@
 import re
+from functools import wraps
 from bisect import bisect
 
 from django.conf import settings
@@ -17,7 +18,16 @@ get_verbose_name = lambda class_name: re.sub('(((?<=[a-z])[A-Z])|([A-Z](?![A-Z]|
 DEFAULT_NAMES = ('verbose_name', 'verbose_name_plural', 'db_table', 'ordering',
                  'unique_together', 'permissions', 'get_latest_by',
                  'order_with_respect_to', 'app_label', 'db_tablespace',
-                 'abstract', 'managed', 'proxy', 'auto_created')
+                 'abstract', 'managed', 'proxy', 'auto_created', 'inherit_perms')
+
+def inherit_perm(f):
+    f_name = f.__name__
+    @wraps(f)
+    def _f(self):
+        if self.proxy and self.inherit_perms:
+            return getattr(self.concrete_model._meta, f_name)()
+        return f(self)
+    return _f
 
 class Options(object):
     def __init__(self, meta, app_label=None):
@@ -29,6 +39,7 @@ class Options(object):
         self.ordering = []
         self.unique_together =  []
         self.permissions =  []
+        self.inherit_perms = False
         self.object_name, self.app_label = None, app_label
         self.get_latest_by = None
         self.order_with_respect_to = None
@@ -350,12 +361,15 @@ class Options(object):
             self._name_map = cache
         return cache
 
+    @inherit_perm
     def get_add_permission(self):
         return 'add_%s' % self.object_name.lower()
 
+    @inherit_perm
     def get_change_permission(self):
         return 'change_%s' % self.object_name.lower()
 
+    @inherit_perm
     def get_delete_permission(self):
         return 'delete_%s' % self.object_name.lower()
 
