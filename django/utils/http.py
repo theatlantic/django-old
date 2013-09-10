@@ -210,7 +210,7 @@ def urlsafe_base64_decode(s):
     assert isinstance(s, str)
     try:
         return base64.urlsafe_b64decode(s.ljust(len(s) + len(s) % 4, str('=')))
-    except (LookupError, BinasciiError), e:
+    except (LookupError, BinasciiError) as e:
         raise ValueError(e)
 
 def parse_etags(etag_str):
