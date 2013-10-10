@@ -518,10 +518,11 @@ class SQLCompiler(object):
                 continue
             alias_str = (alias != name and ' %s' % alias or '')
 
-            join_hint = ''
-            for model_name, hint in self.query.base_hints.items():
-                if model_name == name:
-                    join_hint = ' USE INDEX (%s)' % ', '.join(hint)
+            hint = self.query.join_hints.get(name)
+            if hint:
+                join_hint = ' USE INDEX (%s)' % ', '.join(hint)
+            else:
+                join_hint = ''
 
             if join_type and not first:
                 result.append('%s %s%s%s ON (%s.%s = %s.%s)'

@@ -348,6 +348,7 @@ class QuerySet(object):
         if self._result_cache is not None and not self._iter:
             return len(self._result_cache)
 
+        # Indexing doesn't help with count, so no hinting
         return self.without_hints().query.get_count(using=self.db)
 
     def get(self, *args, **kwargs):
@@ -830,13 +831,13 @@ class QuerySet(object):
         for hint in args:
             clone.query.add_hint(self.model, hint)
         for model, hint in kwargs.items():
-            clone.query.add_base_hint(model, hint)
+            clone.query.add_join_hint(model, hint)
         return clone
 
     def without_hints(self):
         clone = self._clone()
         clone.query.hints = {}
-        clone.query.base_hints = {}
+        clone.query.join_hints = {}
         return clone
 
     ###################################
