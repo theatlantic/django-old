@@ -517,13 +517,23 @@ class SQLCompiler(object):
                 # alias_map if they aren't in a join. That's OK. We skip them.
                 continue
             alias_str = (alias != name and ' %s' % alias or '')
+
+            hint = self.query.join_hints.get(name)
+            if hint:
+                join_hint = ' USE INDEX (%s)' % ', '.join(hint)
+            else:
+                join_hint = ''
+
             if join_type and not first:
-                result.append('%s %s%s ON (%s.%s = %s.%s)'
-                        % (join_type, qn(name), alias_str, qn(lhs),
-                           qn2(lhs_col), qn(alias), qn2(col)))
+                result.append('%s %s%s%s ON (%s.%s = %s.%s)'
+                    % (join_type, qn(name), alias_str, join_hint, qn(lhs),
+                       qn2(lhs_col), qn(alias), qn2(col)))
             else:
                 connector = not first and ', ' or ''
                 result.append('%s%s%s' % (connector, qn(name), alias_str))
+            for model, hint in self.query.hints.items():
+                if model._meta.db_table == name:
+                    result.append(' USE INDEX (%s)' % ', '.join(hint))
             first = False
         for t in self.query.extra_tables:
             alias, unused = self.query.table_alias(t)
