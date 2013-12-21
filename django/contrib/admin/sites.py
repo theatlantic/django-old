@@ -236,7 +236,7 @@ class AdminSite(object):
             url(r'^jsi18n/$',
                 wrap(self.i18n_javascript, cacheable=True),
                 name='jsi18n'),
-            url(r'^r/(?P<content_type_id>\d+)/(?P<object_id>.+)/$',
+            url(r'^r/(?P<content_type_id>.+)/(?P<object_id>.+)/$',
                 wrap(contenttype_views.shortcut),
                 name='view_on_site'),
             url(r'^(?P<app_label>\w+)/$',
