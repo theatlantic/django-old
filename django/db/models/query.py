@@ -828,6 +828,9 @@ class QuerySet(object):
 
     def with_hints(self, *args, **kwargs):
         clone = self._clone()
+        # MySQL only. Otherwise, do nothing.
+        if connections.databases[self.db]['ENGINE'] not in ['mysqlndb', 'django.db.backends.mysql']:
+            return clone
         for hint in args:
             clone.query.add_hint(self.model, hint)
         for model, hint in kwargs.items():
@@ -836,6 +839,9 @@ class QuerySet(object):
 
     def without_hints(self):
         clone = self._clone()
+        # MySQL only. Otherwise, do nothing.
+        if connections.databases[self.db]['ENGINE'] not in ['mysqlndb', 'django.db.backends.mysql']:
+            return clone
         clone.query.hints = {}
         clone.query.join_hints = {}
         return clone
