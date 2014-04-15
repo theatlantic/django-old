@@ -518,11 +518,11 @@ class SQLCompiler(object):
                 continue
             alias_str = (alias != name and ' %s' % alias or '')
 
-            hint = self.query.join_hints.get(name)
-            if hint:
-                join_hint = ' USE INDEX (%s)' % ', '.join(hint)
-            else:
-                join_hint = ''
+            join_hint = ''
+            if self.connection.vendor != 'sqlite':
+                hint = self.query.join_hints.get(name)
+                if hint:
+                    join_hint = ' USE INDEX (%s)' % ', '.join(hint)
 
             if join_type and not first:
                 result.append('%s %s%s%s ON (%s.%s = %s.%s)'
@@ -531,9 +531,11 @@ class SQLCompiler(object):
             else:
                 connector = not first and ', ' or ''
                 result.append('%s%s%s' % (connector, qn(name), alias_str))
-            for model, hint in self.query.hints.items():
-                if model._meta.db_table == name:
-                    result.append(' USE INDEX (%s)' % ', '.join(hint))
+
+            if self.connection.vendor != 'sqlite':
+                for model, hint in self.query.hints.items():
+                    if model._meta.db_table == name:
+                        result.append(' USE INDEX (%s)' % ', '.join(hint))
             first = False
         for t in self.query.extra_tables:
             alias, unused = self.query.table_alias(t)
