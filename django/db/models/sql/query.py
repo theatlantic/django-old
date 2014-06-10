@@ -296,8 +296,8 @@ class Query(object):
             obj._extra_select_cache = self._extra_select_cache.copy()
         obj.extra_tables = self.extra_tables
         obj.extra_order_by = self.extra_order_by
-        obj.hints = self.hints
-        obj.join_hints = self.join_hints
+        obj.hints = copy.deepcopy(self.hints)
+        obj.join_hints = copy.deepcopy(self.join_hints)
         obj.deferred_loading = copy.deepcopy(self.deferred_loading, memo=memo)
         if self.filter_is_sticky and self.used_aliases:
             obj.used_aliases = self.used_aliases.copy()
