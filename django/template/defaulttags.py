@@ -13,9 +13,9 @@ from django.template.base import (Node, NodeList, Template, Library,
     SINGLE_BRACE_START, SINGLE_BRACE_END, COMMENT_TAG_START, COMMENT_TAG_END,
     VARIABLE_ATTRIBUTE_SEPARATOR, get_library, token_kwargs, kwarg_re)
 from django.template.smartif import IfParser, Literal
-from django.template.defaultfilters import date
+from django.template.defaultfilters import date, escape
 from django.utils.encoding import smart_str, smart_unicode
-from django.utils.safestring import mark_safe
+from django.utils.safestring import mark_safe, SafeData
 from django.utils import timezone
 
 register = Library()
@@ -102,7 +102,10 @@ class FirstOfNode(Node):
         for var in self.vars:
             value = var.resolve(context, True)
             if value:
-                return smart_unicode(value)
+                if isinstance(value, SafeData):
+                    return smart_unicode(value)
+                else:
+                    return escape(smart_unicode(value))
         return u''
 
 class ForNode(Node):
@@ -653,11 +656,11 @@ def firstof(parser, token):
     This is equivalent to::
 
         {% if var1 %}
-            {{ var1|safe }}
+            {{ var1 }}
         {% else %}{% if var2 %}
-            {{ var2|safe }}
+            {{ var2 }}
         {% else %}{% if var3 %}
-            {{ var3|safe }}
+            {{ var3 }}
         {% endif %}{% endif %}{% endif %}
 
     but obviously much cleaner!
@@ -667,11 +670,9 @@ def firstof(parser, token):
 
         {% firstof var1 var2 var3 "fallback value" %}
 
-    If you want to escape the output, use a filter tag::
+    You can also disable escaping:
 
-        {% filter force_escape %}
-            {% firstof var1 var2 var3 "fallback value" %}
-        {% endfilter %}
+        {% firstof var1|safe var2|safe %}
 
     """
     bits = token.split_contents()[1:]
